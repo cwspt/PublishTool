@@ -28,7 +28,7 @@
         <!-- Toolbar Row 2 -->
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,4">
             <TextBlock Text="配置:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-            <ComboBox x:Name="CmbConfig" Width="90" SelectedIndex="0">
+            <ComboBox x:Name="CmbConfig" Width="90" Height="28" FontSize="13" SelectedIndex="0">
                 <ComboBoxItem Content="Debug"/>
                 <ComboBoxItem Content="Release"/>
             </ComboBox>
@@ -42,7 +42,7 @@
             <Button x:Name="BtnStop" Content="⏹ 停止" Width="66" Click="Stop_Click"
                     ToolTip="终止当前任务" IsEnabled="False" Foreground="Red" FontWeight="Bold"/>
             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,0,4,0"/>
-            <ComboBox x:Name="CmbCustomScript" Width="130" ToolTip="选择自定义脚本" Margin="0,0,4,0"/>
+            <ComboBox x:Name="CmbCustomScript" Width="130" Height="28" FontSize="13" ToolTip="选择自定义脚本" Margin="0,0,4,0"/>
             <Button Content="▶ 执行" Style="{StaticResource ToolbarButton}" Width="60" Click="RunCustomScript_Click"
                     ToolTip="执行选中的自定义脚本" Margin="0,0,6,0"/>
             <Button Content="🗑 清空日志" Style="{StaticResource ToolbarButton}" Width="80" Click="ClearLog_Click" ToolTip="清空日志输出" Margin="4,0,0,0" Opacity="0.7"/>
