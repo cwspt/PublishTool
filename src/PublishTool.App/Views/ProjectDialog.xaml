@@ -2,7 +2,45 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="项目编辑" Width="560" Height="650"
-        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        TextOptions.TextFormattingMode="Display"
+        Background="#F0F2F5">
+    <Window.Resources>
+        <SolidColorBrush x:Key="AccentBrush" Color="#1677FF"/>
+        <SolidColorBrush x:Key="BorderLight" Color="#D9D9D9"/>
+        <Style TargetType="TextBox">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style TargetType="Button" x:Key="DialogButton">
+            <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4"
+                                Padding="{TemplateBinding Padding}" Name="border">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#4096FF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid Margin="20">
             <Grid.RowDefinitions>
@@ -134,8 +172,8 @@
 
             <!-- Buttons -->
             <StackPanel Grid.Row="10" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
-                <Button Content="确定" Width="80" Height="28" Click="Ok_Click" Margin="0,0,10,0"/>
-                <Button Content="取消" Width="80" Height="28" Click="Cancel_Click"/>
+                <Button Content="确定" Width="80" Height="28" Click="Ok_Click" Style="{StaticResource DialogButton}" Margin="0,0,10,0"/>
+                <Button Content="取消" Width="80" Height="28" Click="Cancel_Click" Style="{StaticResource DialogButton}" Background="#F5F5F5" Foreground="#333333"/>
             </StackPanel>
         </Grid>
     </ScrollViewer>

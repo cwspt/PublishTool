@@ -16,13 +16,13 @@
 
         <!-- Toolbar Row 1 -->
         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-            <Button Content="+ 添加项目" Width="100" Click="AddProject_Click" Margin="0,0,6,0"/>
-            <Button Content="✎ 编辑" Width="66" Click="EditProject_Click" Margin="0,0,6,0"/>
-            <Button Content="✕ 删除" Width="66" Click="DeleteProject_Click" Margin="0,0,6,0"/>
-            <Button Content="📂 项目目录" Width="88" Click="OpenFolder_Click" Margin="0,0,12,0"/>
+            <Button Content="+ 添加项目" Style="{StaticResource ToolbarButton}" Width="100" Click="AddProject_Click" Margin="0,0,6,0"/>
+            <Button Content="✎ 编辑" Style="{StaticResource ToolbarButton}" Width="66" Click="EditProject_Click" Margin="0,0,6,0"/>
+            <Button Content="✕ 删除" Style="{StaticResource ToolbarButton}" Width="66" Click="DeleteProject_Click" Margin="0,0,6,0"/>
+            <Button Content="📂 项目目录" Style="{StaticResource ToolbarButton}" Width="88" Click="OpenFolder_Click" Margin="0,0,12,0"/>
             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,0,8,0"/>
-            <Button Content="📥 导入配置" Width="88" Click="ImportConfig_Click" Margin="0,0,6,0"/>
-            <Button Content="📤 导出配置" Width="88" Click="ExportConfig_Click"/>
+            <Button Content="📥 导入配置" Style="{StaticResource ToolbarButton}" Width="88" Click="ImportConfig_Click" Margin="0,0,6,0"/>
+            <Button Content="📤 导出配置" Style="{StaticResource ToolbarButton}" Width="88" Click="ExportConfig_Click"/>
         </StackPanel>
 
         <!-- Toolbar Row 2 -->
@@ -32,37 +32,37 @@
                 <ComboBoxItem Content="Debug"/>
                 <ComboBoxItem Content="Release"/>
             </ComboBox>
-            <Button Content="▶ 编译" Width="66" Click="Build_Click" Margin="6,0,4,0"/>
-            <Button Content="📁 产物" Width="66" Click="OpenBuildOutput_Click" ToolTip="打开编译产物目录" Margin="0,0,4,0"/>
-            <Button Content="▶ 启动" Width="66" Click="Run_Click" ToolTip="启动编译产物的可执行文件" Margin="0,0,12,0"/>
+            <Button Content="▶ 编译" Style="{StaticResource ToolbarButton}" Width="66" Click="Build_Click" Margin="6,0,4,0"/>
+            <Button Content="📁 产物" Style="{StaticResource ToolbarButton}" Width="66" Click="OpenBuildOutput_Click" ToolTip="打开编译产物目录" Margin="0,0,4,0"/>
+            <Button Content="▶ 启动" Style="{StaticResource ToolbarButton}" Width="66" Click="Run_Click" ToolTip="启动编译产物的可执行文件" Margin="0,0,12,0"/>
             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,0,6,0"/>
-            <Button Content="📦 发布" Width="66" Click="Publish_Click" Margin="0,0,4,0"/>
-            <Button Content="📁 发布目录" Width="80" Click="OpenPublishDir_Click" ToolTip="打开发布输出目录" Margin="0,0,12,0"/>
+            <Button Content="📦 发布" Style="{StaticResource ToolbarButton}" Width="66" Click="Publish_Click" Margin="0,0,4,0"/>
+            <Button Content="📁 发布目录" Style="{StaticResource ToolbarButton}" Width="80" Click="OpenPublishDir_Click" ToolTip="打开发布输出目录" Margin="0,0,12,0"/>
             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,0,6,0"/>
             <Button x:Name="BtnStop" Content="⏹ 停止" Width="66" Click="Stop_Click"
                     ToolTip="终止当前任务" IsEnabled="False" Foreground="Red" FontWeight="Bold"/>
             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,0,4,0"/>
             <ComboBox x:Name="CmbCustomScript" Width="130" ToolTip="选择自定义脚本" Margin="0,0,4,0"/>
-            <Button Content="▶ 执行" Width="60" Click="RunCustomScript_Click"
+            <Button Content="▶ 执行" Style="{StaticResource ToolbarButton}" Width="60" Click="RunCustomScript_Click"
                     ToolTip="执行选中的自定义脚本" Margin="0,0,6,0"/>
-            <Button Content="🗑 清空日志" Width="80" Click="ClearLog_Click" ToolTip="清空日志输出" Margin="4,0,0,0" Opacity="0.7"/>
+            <Button Content="🗑 清空日志" Style="{StaticResource ToolbarButton}" Width="80" Click="ClearLog_Click" ToolTip="清空日志输出" Margin="4,0,0,0" Opacity="0.7"/>
         </StackPanel>
 
         <!-- Toolbar Row 3: Project groups -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
             <TextBlock Text="组:" VerticalAlignment="Center" Margin="0,0,4,0"/>
             <ComboBox x:Name="CmbGroup" Width="150" SelectionChanged="CmbGroup_SelectionChanged"/>
-            <Button x:Name="BtnGroupBuild" Content="▶ 组脚本" Width="72" Click="BuildGroup_Click"
+            <Button x:Name="BtnGroupBuild" Content="▶ 组脚本" Style="{StaticResource ToolbarButton}" Width="72" Click="BuildGroup_Click"
                     ToolTip="执行组内配置的编译脚本" Margin="4,0,4,0"
                     IsEnabled="False"/>
-            <Button x:Name="BtnGroupPublish" Content="📦 发布组" Width="80" Click="PublishGroup_Click"
+            <Button x:Name="BtnGroupPublish" Content="📦 发布组" Style="{StaticResource ToolbarButton}" Width="80" Click="PublishGroup_Click"
                     ToolTip="按顺序发布组内所有项目" Margin="4,0,6,0"/>
-            <Button Content="⚙" Width="30" Click="ManageGroups_Click"
+            <Button Content="⚙" Style="{StaticResource ToolbarButton}" Width="30" Click="ManageGroups_Click"
                     ToolTip="管理项目组" Margin="0,0,0,0"/>
         </StackPanel>
 
         <!-- Project List -->
-        <ListView Grid.Row="3" x:Name="LstProjects" SelectionMode="Single"
+        <ListView Grid.Row="3" x:Name="LstProjects" SelectionMode="Single" AlternationCount="2" Background="{StaticResource CardBg}"
                   SelectionChanged="LstProjects_SelectionChanged" Margin="0,0,0,8">
             <ListView.ContextMenu>
                 <ContextMenu>
@@ -104,7 +104,7 @@
                    VerticalAlignment="Center" Visibility="Collapsed"
                    IsHitTestVisible="False"/>
 
-        <StatusBar Grid.Row="4" Margin="0,0,0,4">
+        <StatusBar Grid.Row="4" Background="{StaticResource AccentBrush}" Foreground="White" Margin="0,0,0,4">
             <StatusBarItem>
                 <TextBlock x:Name="TxtStatus" Text="就绪"/>
             </StatusBarItem>
@@ -114,9 +114,9 @@
         </StatusBar>
 
         <GridSplitter Grid.Row="5" Height="4" HorizontalAlignment="Stretch" Background="LightGray" Margin="0,4"/>
-        <TextBox Grid.Row="6" x:Name="TxtOutput" IsReadOnly="True" FontFamily="Consolas"
+        <TextBox Grid.Row="6" x:Name="TxtOutput" IsReadOnly="True" FontFamily="Consolas" FontSize="12"
                  TextWrapping="Wrap" HorizontalScrollBarVisibility="Disabled"
-                 FontSize="12" VerticalScrollBarVisibility="Auto" Background="#1e1e1e"
-                 Foreground="#d4d4d4" Margin="0,4,0,0"/>
+                 VerticalScrollBarVisibility="Auto" Background="#1E1E1E"
+                 Foreground="#D4D4D4" BorderThickness="0" Margin="0,4,0,0"/>
     </Grid>
 </Window>

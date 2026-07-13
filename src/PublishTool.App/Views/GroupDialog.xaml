@@ -108,8 +108,8 @@
 
         <!-- Row 7: Buttons -->
         <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-            <Button Content="确定" Width="80" Height="28" Click="Ok_Click" Margin="0,0,10,0"/>
-            <Button Content="取消" Width="80" Height="28" Click="Cancel_Click"/>
+            <Button Content="确定" Width="80" Height="28" Click="Ok_Click" Style="{StaticResource DialogButton}" Margin="0,0,10,0"/>
+            <Button Content="取消" Width="80" Height="28" Click="Cancel_Click" Style="{StaticResource DialogButton}" Background="#F5F5F5" Foreground="#333333"/>
         </StackPanel>
     </Grid>
 </Window>
