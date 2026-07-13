@@ -20,7 +20,7 @@
             <Button Content="✎ 编辑" Style="{StaticResource ToolbarButton}" Width="66" Click="EditProject_Click" Margin="0,0,6,0"/>
             <Button Content="✕ 删除" Style="{StaticResource ToolbarButton}" Width="66" Click="DeleteProject_Click" Margin="0,0,6,0"/>
             <Button Content="📂 项目目录" Style="{StaticResource ToolbarButton}" Width="88" Click="OpenFolder_Click" Margin="0,0,12,0"/>
-            <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,0,8,0"/>
+            
             <Button Content="📥 导入配置" Style="{StaticResource ToolbarButton}" Width="88" Click="ImportConfig_Click" Margin="0,0,6,0"/>
             <Button Content="📤 导出配置" Style="{StaticResource ToolbarButton}" Width="88" Click="ExportConfig_Click"/>
         </StackPanel>
