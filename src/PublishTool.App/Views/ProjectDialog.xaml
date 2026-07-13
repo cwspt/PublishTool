@@ -1,21 +1,23 @@
 <Window x:Class="PublishTool.App.Views.ProjectDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="项目编辑" Width="560" Height="650"
-        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Title="项目编辑" Width="620" MinHeight="390" MaxHeight="740"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" SizeToContent="Height"
         TextOptions.TextFormattingMode="Display"
-        Background="#F0F2F5">
+        Background="#F5F7FA" FontFamily="Segoe UI">
     <Window.Resources>
-        <SolidColorBrush x:Key="AccentBrush" Color="#1677FF"/>
-        <SolidColorBrush x:Key="BorderLight" Color="#D9D9D9"/>
+        <SolidColorBrush x:Key="AccentBrush" Color="#2563EB"/>
+        <SolidColorBrush x:Key="BorderLight" Color="#DCE2EA"/>
         <Style TargetType="TextBox">
             <Setter Property="Height" Value="28"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Padding" Value="7,0"/>
         </Style>
         <Style TargetType="ComboBox">
             <Setter Property="Height" Value="28"/>
             <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="6,0"/>
         </Style>
         <Style TargetType="Button" x:Key="DialogButton">
             <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
@@ -33,7 +35,41 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#4096FF"/>
+                                <Setter TargetName="border" Property="Background" Value="#1D4ED8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource DialogButton}">
+            <Setter Property="Background" Value="#F8FAFC"/>
+            <Setter Property="Foreground" Value="#334155"/>
+            <Setter Property="BorderBrush" Value="#94A3B8"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#E0ECFF"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#2563EB"/>
+                                <Setter Property="Foreground" Value="#1D4ED8"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#DBEAFE"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#1D4ED8"/>
+                                <Setter Property="Foreground" Value="#1E3A8A"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -41,7 +77,7 @@
             </Setter>
         </Style>
     </Window.Resources>
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <Grid Margin="20">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -59,22 +95,22 @@
 
             <!-- Name -->
             <TextBlock Text="项目名称" FontWeight="Bold" Margin="0,0,0,4"/>
-            <TextBox Grid.Row="1" x:Name="TxtName" Height="26" Margin="0,0,0,14"/>
+            <TextBox Grid.Row="1" x:Name="TxtName" Height="28" Margin="0,0,0,10"/>
 
             <!-- Path -->
             <TextBlock Grid.Row="2" Text="项目文件路径 (.csproj / 项目目录)" FontWeight="Bold" Margin="0,0,0,4"/>
-            <Grid Grid.Row="3" Margin="0,0,0,14">
+            <Grid Grid.Row="3" Margin="0,0,0,10">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBox x:Name="TxtPath" Height="26"/>
-                <Button Grid.Column="1" Content="浏览..." Width="70" Margin="8,0,0,0" Click="BrowsePath_Click"/>
+                <TextBox x:Name="TxtPath" Height="28"/>
+                <Button Grid.Column="1" Content="浏览" Style="{StaticResource SecondaryButton}" Width="76" Margin="8,0,0,0" Click="BrowsePath_Click"/>
             </Grid>
 
             <!-- Type -->
             <TextBlock Grid.Row="4" Text="项目类型" FontWeight="Bold" Margin="0,0,0,4"/>
-            <ComboBox Grid.Row="5" x:Name="CmbType" Height="26" Margin="0,0,0,14">
+            <ComboBox Grid.Row="5" x:Name="CmbType" Height="28" Margin="0,0,0,10">
                 <ComboBoxItem Content="控制台 (Console)"/>
                 <ComboBoxItem Content="WinForms"/>
                 <ComboBoxItem Content="WPF"/>
@@ -86,18 +122,18 @@
 
             <!-- Publish dir -->
             <TextBlock Grid.Row="6" Text="发布目标目录" FontWeight="Bold" Margin="0,0,0,4"/>
-            <Grid Grid.Row="7" Margin="0,0,0,14">
+            <Grid Grid.Row="7" Margin="0,0,0,10">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBox x:Name="TxtPublishDir" Height="26"/>
-                <Button Grid.Column="1" Content="浏览..." Width="70" Margin="8,0,0,0" Click="BrowsePublishDir_Click"/>
+                <TextBox x:Name="TxtPublishDir" Height="28"/>
+                <Button Grid.Column="1" Content="浏览" Style="{StaticResource SecondaryButton}" Width="76" Margin="8,0,0,0" Click="BrowsePublishDir_Click"/>
             </Grid>
 
             <!-- Custom build/publish scripts -->
-            <Expander Grid.Row="8" Header="自定义编译/发布脚本（可选）" Margin="0,8,0,0" IsExpanded="False" FontWeight="Bold">
-                <Grid Margin="0,8,0,0">
+            <Expander Grid.Row="8" Header="自定义编译/发布脚本（可选）" Margin="0,4,0,0" IsExpanded="False" FontWeight="Bold">
+                <Grid Margin="0,6,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -108,23 +144,23 @@
                     </Grid.RowDefinitions>
 
                     <TextBlock Text="Debug 编译脚本" FontWeight="Normal" Margin="0,0,0,2"/>
-                    <Grid Grid.Row="1" Margin="0,0,0,10">
+                    <Grid Grid.Row="1" Margin="0,0,0,7">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBox x:Name="TxtDebugScript" Height="26" ToolTip="例如: dotnet build -c Debug --no-restore"/>
-                        <Button Grid.Column="1" Content="浏览..." Width="70" Margin="8,0,0,0" Click="BrowseDebugScript_Click"/>
+                        <TextBox x:Name="TxtDebugScript" Height="28" ToolTip="例如: dotnet build -c Debug --no-restore"/>
+                        <Button Grid.Column="1" Content="浏览" Style="{StaticResource SecondaryButton}" Width="76" Margin="8,0,0,0" Click="BrowseDebugScript_Click"/>
                     </Grid>
 
                     <TextBlock Grid.Row="2" Text="Release 编译脚本" FontWeight="Normal" Margin="0,0,0,2"/>
-                    <Grid Grid.Row="3" Margin="0,0,0,10">
+                    <Grid Grid.Row="3" Margin="0,0,0,7">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBox x:Name="TxtReleaseScript" Height="26" ToolTip="例如: dotnet build -c Release --no-restore"/>
-                        <Button Grid.Column="1" Content="浏览..." Width="70" Margin="8,0,0,0" Click="BrowseReleaseScript_Click"/>
+                        <TextBox x:Name="TxtReleaseScript" Height="28" ToolTip="例如: dotnet build -c Release --no-restore"/>
+                        <Button Grid.Column="1" Content="浏览" Style="{StaticResource SecondaryButton}" Width="76" Margin="8,0,0,0" Click="BrowseReleaseScript_Click"/>
                     </Grid>
 
                     <TextBlock Grid.Row="4" Text="发布脚本" FontWeight="Normal" Margin="0,0,0,2"/>
@@ -133,21 +169,21 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBox x:Name="TxtPublishScript" Height="26" ToolTip="例如: dotnet publish -c Release -o D:\output --no-restore"/>
-                        <Button Grid.Column="1" Content="浏览..." Width="70" Margin="8,0,0,0" Click="BrowsePublishScript_Click"/>
+                        <TextBox x:Name="TxtPublishScript" Height="28" ToolTip="例如: dotnet publish -c Release -o D:\output --no-restore"/>
+                        <Button Grid.Column="1" Content="浏览" Style="{StaticResource SecondaryButton}" Width="76" Margin="8,0,0,0" Click="BrowsePublishScript_Click"/>
                     </Grid>
                 </Grid>
             </Expander>
 
             <!-- Custom user scripts -->
-            <Expander Grid.Row="9" Header="自定义脚本" Margin="0,8,0,0" IsExpanded="False" FontWeight="Bold">
-                <Grid Margin="0,8,0,0">
+            <Expander Grid.Row="9" Header="自定义脚本" Margin="0,4,0,0" IsExpanded="False" FontWeight="Bold">
+                <Grid Margin="0,6,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <Button Content="+ 添加脚本" Width="80" Click="AddCustomScript_Click" Margin="0,0,0,6"/>
-                    <ScrollViewer Grid.Row="1" MaxHeight="180" VerticalScrollBarVisibility="Auto">
+                    <Button Content="+ 添加脚本" Width="116" Height="30" HorizontalAlignment="Left" Style="{StaticResource SecondaryButton}" Click="AddCustomScript_Click" Margin="0,0,0,6"/>
+                    <ScrollViewer Grid.Row="1" MaxHeight="160" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl x:Name="IcsCustomScripts">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -158,10 +194,10 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBox Text="{Binding Name}" Height="26" ToolTip="脚本名称"/>
-                                        <TextBox Grid.Column="1" Text="{Binding Path}" Height="26" Margin="6,0,0,0" ToolTip="脚本文件路径"/>
-                                        <Button Grid.Column="2" Content="浏览..." Width="70" Margin="6,0,0,0" Click="BrowseCustomScript_Click" Tag="{Binding}"/>
-                                        <Button Grid.Column="3" Content="✕" Width="28" Margin="4,0,0,0" Click="RemoveCustomScript_Click" Tag="{Binding}" Foreground="Red" FontWeight="Bold"/>
+                                        <TextBox Text="{Binding Name}" Height="28" ToolTip="脚本名称"/>
+                                        <TextBox Grid.Column="1" Text="{Binding Path}" Height="28" Margin="6,0,0,0" ToolTip="脚本文件路径"/>
+                                        <Button Grid.Column="2" Content="浏览" Style="{StaticResource SecondaryButton}" Width="76" Margin="6,0,0,0" Click="BrowseCustomScript_Click" Tag="{Binding}"/>
+                                        <Button Grid.Column="3" Content="删除" Style="{StaticResource SecondaryButton}" Width="52" Margin="4,0,0,0" Click="RemoveCustomScript_Click" Tag="{Binding}" Foreground="#DC2626"/>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -171,9 +207,9 @@
             </Expander>
 
             <!-- Buttons -->
-            <StackPanel Grid.Row="10" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
-                <Button Content="确定" Width="80" Height="28" Click="Ok_Click" Style="{StaticResource DialogButton}" Margin="0,0,10,0"/>
-                <Button Content="取消" Width="80" Height="28" Click="Cancel_Click" Style="{StaticResource DialogButton}" Background="#F5F5F5" Foreground="#333333"/>
+            <StackPanel Grid.Row="10" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                <Button Content="取消" Width="84" Height="30" Click="Cancel_Click" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0"/>
+                <Button Content="确定" Width="84" Height="30" Click="Ok_Click" Style="{StaticResource DialogButton}"/>
             </StackPanel>
         </Grid>
     </ScrollViewer>

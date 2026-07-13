@@ -207,9 +207,12 @@ public partial class GroupDialog : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (_currentGroup != null && !string.IsNullOrWhiteSpace(TxtGroupName.Text))
-            _currentGroup.Name = TxtGroupName.Text.Trim();
-        _currentGroup.BuildScript = string.IsNullOrWhiteSpace(TxtBuildScript.Text) ? null : TxtBuildScript.Text.Trim();
+        if (_currentGroup != null)
+        {
+            if (!string.IsNullOrWhiteSpace(TxtGroupName.Text))
+                _currentGroup.Name = TxtGroupName.Text.Trim();
+            _currentGroup.BuildScript = string.IsNullOrWhiteSpace(TxtBuildScript.Text) ? null : TxtBuildScript.Text.Trim();
+        }
         base.OnClosing(e);
     }
 
