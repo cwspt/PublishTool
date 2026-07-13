@@ -1,0 +1,46 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+## VS / Rider
+.vs/
+.idea/
+*.DotSettings.user
+
+## NuGet
+packages/
+*.nupkg
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## Publish
+[Pp]ublish/
+
+## OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+## Test
+TestResults/
+*.trx
+*.coverage
+# project groups data
+project-groups.json
