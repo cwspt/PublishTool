@@ -8,6 +8,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -33,6 +34,9 @@ public partial class MainWindow : Window
     private const int MaxOutputBatchCharacters = 64 * 1024;
     private const int MaxStoredLogCharacters = 1_500_000;
     private const int RetainedLogCharacters = 1_200_000;
+    private static readonly Regex AnsiEscapeSequence = new(
+        @"\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\a]*(?:\a|\x1B\\))",
+        RegexOptions.Compiled);
 
     public MainWindow()
     {
@@ -503,24 +507,29 @@ public partial class MainWindow : Window
 
     private void OnBuildOutput(string text)
     {
-        _pendingOutput.Enqueue(text);
+        _pendingOutput.Enqueue(AnsiEscapeSequence.Replace(text, string.Empty));
     }
 
     private void LogLine(string text)
     {
+        FlushPendingOutput(flushAll: true);
         AppendLogText(text + Environment.NewLine);
     }
 
-    private void FlushPendingOutput()
+    private void FlushPendingOutput(bool flushAll = false)
     {
-        if (_pendingOutput.IsEmpty) return;
+        do
+        {
+            if (_pendingOutput.IsEmpty) return;
 
-        var batch = new StringBuilder();
-        while (batch.Length < MaxOutputBatchCharacters && _pendingOutput.TryDequeue(out var line))
-            batch.AppendLine(line);
+            var batch = new StringBuilder();
+            while (batch.Length < MaxOutputBatchCharacters && _pendingOutput.TryDequeue(out var line))
+                batch.AppendLine(line);
 
-        if (batch.Length > 0)
-            AppendLogText(batch.ToString());
+            if (batch.Length > 0)
+                AppendLogText(batch.ToString());
+        }
+        while (flushAll && !_pendingOutput.IsEmpty);
     }
 
     private void AppendLogText(string text)
@@ -772,7 +781,37 @@ public partial class MainWindow : Window
             MessageBox.Show("Android 项目暂不支持直接启动", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-        
+
+        if (selected.Type == ProjectType.Vue)
+        {
+            var workDir = System.IO.File.Exists(selected.ProjectPath)
+                ? System.IO.Path.GetDirectoryName(selected.ProjectPath)!
+                : selected.ProjectPath;
+
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    WorkingDirectory = workDir,
+                    UseShellExecute = true
+                };
+                psi.ArgumentList.Add("/k");
+                psi.ArgumentList.Add("npm.cmd run dev");
+                Process.Start(psi);
+
+                ClearOutput();
+                LogLine("========== 已在独立命令行窗口启动 Vue 开发服务器 ==========");
+                LogLine("工作目录: " + workDir);
+                TxtStatus.Text = "Vue 已在独立命令行窗口启动: " + selected.Name;
+            }
+            catch (Exception ex)
+            {
+                LogLine("Vue 启动失败: " + ex.Message);
+                TxtStatus.Text = "Vue 启动失败";
+            }
+            return;
+        }
 
         if (_build.IsRunning)
         {
@@ -786,28 +825,6 @@ public partial class MainWindow : Window
         if (selected.Type is ProjectType.BlazorWasm or ProjectType.BlazorServer)
         {
             _build.RunProject(selected, isRelease);
-            return;
-        }
-
-        if (selected.Type == ProjectType.Vue)
-        {
-            var workDir = System.IO.File.Exists(selected.ProjectPath)
-                ? System.IO.Path.GetDirectoryName(selected.ProjectPath)!
-                : selected.ProjectPath;
-
-            TxtOutput.Clear();
-            LogLine("========== 启动 Vue 开发服务器 ==========");
-            TxtStatus.Text = "启动 Vue: " + selected.Name;
-
-            _ = System.Threading.Tasks.Task.Run(async () =>
-            {
-                var ok = await _build.RunProcessForGroup("cmd", "/c npm run dev", workDir);
-                Dispatcher.Invoke(() =>
-                {
-                    LogLine(ok ? "Vue 开发服务器已退出" : "Vue 启动失败");
-                    TxtStatus.Text = ok ? "Vue 开发服务器已退出" : "Vue 启动失败";
-                });
-            });
             return;
         }
 

@@ -320,15 +320,25 @@ public class BuildService
         var process = new Process { StartInfo = psi };
         _currentProcess = process;
 
-        var tcs = new TaskCompletionSource<bool>();
+        var processExited = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var standardOutputClosed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var standardErrorClosed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var ct = _cts?.Token ?? CancellationToken.None;
 
-        process.OutputDataReceived += (_, e) => { if (e.Data != null) OnOutput(e.Data); };
-        process.ErrorDataReceived += (_, e) => { if (e.Data != null) OnOutput($"错误: {e.Data}"); };
+        process.OutputDataReceived += (_, e) =>
+        {
+            if (e.Data != null) OnOutput(e.Data);
+            else standardOutputClosed.TrySetResult(true);
+        };
+        process.ErrorDataReceived += (_, e) =>
+        {
+            if (e.Data != null) OnOutput($"错误: {e.Data}");
+            else standardErrorClosed.TrySetResult(true);
+        };
         process.EnableRaisingEvents = true;
-        process.Exited += (_, _) => tcs.TrySetResult(process.ExitCode == 0);
+        process.Exited += (_, _) => processExited.TrySetResult(process.ExitCode == 0);
 
-        ct.Register(() => tcs.TrySetResult(false));
+        using var cancellationRegistration = ct.Register(() => processExited.TrySetResult(false));
 
         try
         {
@@ -336,7 +346,9 @@ public class BuildService
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
-            await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromMinutes(10), ct));
+            var completedTask = await Task.WhenAny(
+                processExited.Task,
+                Task.Delay(TimeSpan.FromMinutes(10), ct));
 
             if (ct.IsCancellationRequested)
             {
@@ -344,13 +356,16 @@ public class BuildService
                 throw new OperationCanceledException(ct);
             }
 
-            if (!process.HasExited)
+            if (completedTask != processExited.Task || !process.HasExited)
             {
-                process.Kill();
+                try { process.Kill(true); } catch { }
+                await Task.WhenAll(standardOutputClosed.Task, standardErrorClosed.Task);
                 OnOutput("编译超时（10分钟），已终止");
                 return false;
             }
 
+            // The process exit event can precede the final async output callbacks.
+            await Task.WhenAll(standardOutputClosed.Task, standardErrorClosed.Task);
             return process.ExitCode == 0;
         }
         catch (OperationCanceledException) { throw; }
