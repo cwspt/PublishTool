@@ -202,7 +202,7 @@
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal">
-                                            <Image Source="{Binding IconPath}" Width="20" Height="20" Stretch="Uniform"
+                                            <Image Source="{Binding IconSource}" Width="20" Height="20" Stretch="Uniform"
                                                    Margin="0,0,8,0" VerticalAlignment="Center"/>
                                             <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>

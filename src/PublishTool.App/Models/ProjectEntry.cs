@@ -4,6 +4,8 @@ using System.Text.Json.Serialization;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace PublishTool.App.Models;
 
@@ -39,20 +41,43 @@ public class ProjectEntry
     public string? DebugScript { get; set; }
     public string? ReleaseScript { get; set; }
     
-        private string? _iconPath;
+    private ImageSource? _iconSource;
     private bool _iconResolved;
 
     [JsonIgnore]
-    public string? IconPath
+    public ImageSource? IconSource
     {
         get
         {
             if (!_iconResolved)
             {
-                _iconPath = DetectIcon();
+                _iconSource = LoadIcon(DetectIcon());
                 _iconResolved = true;
             }
-            return _iconPath;
+            return _iconSource;
+        }
+    }
+
+    private static ImageSource? LoadIcon(string? iconPath)
+    {
+        if (string.IsNullOrWhiteSpace(iconPath)) return null;
+
+        try
+        {
+            // OnLoad copies the decoded image into memory before the stream is disposed.
+            using var stream = new FileStream(iconPath, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.StreamSource = stream;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -204,10 +229,10 @@ public class ProjectEntry
 
     
     
-    /// <summary>Clear cached icon so it gets re-detected on next access.</summary>
+    /// <summary>Clear the in-memory icon so it gets re-detected on next access.</summary>
     public void RefreshIcon()
     {
-        _iconPath = null;
+        _iconSource = null;
         _iconResolved = false;
     }
 
