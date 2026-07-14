@@ -30,6 +30,11 @@ public partial class MainWindow : Window
     private ProjectEntry? _activeProject;
     private readonly ConcurrentQueue<string> _pendingOutput = new();
     private DispatcherTimer? _outputFlushTimer;
+    private Stopwatch? _totalRunStopwatch;
+    private Stopwatch? _currentProjectStopwatch;
+    private ProjectEntry? _timedProject;
+    private string? _runSummary;
+    private long _lastElapsedSecond = -1;
 
     private const int MaxOutputBatchCharacters = 64 * 1024;
     private const int MaxStoredLogCharacters = 1_500_000;
@@ -46,7 +51,11 @@ public partial class MainWindow : Window
         {
             Interval = TimeSpan.FromMilliseconds(100)
         };
-        _outputFlushTimer.Tick += (_, _) => FlushPendingOutput();
+        _outputFlushTimer.Tick += (_, _) =>
+        {
+            FlushPendingOutput();
+            RefreshRunningDuration();
+        };
         _outputFlushTimer.Start();
         LoadProjects();
     }
@@ -122,6 +131,8 @@ public partial class MainWindow : Window
 
         var sw = Stopwatch.StartNew();
         selected.Status = BuildStatus.Publishing;
+        BeginRunTiming("执行脚本: " + script.Name);
+        BeginProjectTiming(selected);
         UpdateUI();
 
         try
@@ -140,7 +151,7 @@ public partial class MainWindow : Window
             LogLine(ok
                 ? "========== 脚本执行成功 (耗时 " + ts + ") =========="
                 : "========== 脚本执行失败 (耗时 " + ts + ") ==========");
-            TxtStatus.Text = ok ? "脚本执行成功 (" + ts + ")" : "脚本执行失败 (" + ts + ")";
+            TxtStatus.Text = ok ? "脚本执行成功 (总用时 " + ts + ")" : "脚本执行失败 (总用时 " + ts + ")";
         }
         catch (Exception ex)
         {
@@ -149,6 +160,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            EndRunTiming();
             selected.Status = BuildStatus.Idle;
             UpdateUI();
         }
@@ -413,10 +425,12 @@ public partial class MainWindow : Window
 
         _activeProject = selected;
         selected.Status = status;
+        BeginRunTiming($"编译: {selected.Name} ({CmbConfig.Text})");
+        BeginProjectTiming(selected);
         UpdateUI();
 
         TxtOutput.Clear();
-        TxtStatus.Text = selected.StatusText;
+        RefreshRunningDuration(force: true);
         LogLine($"========== 开始编译: {selected.Name} ({CmbConfig.Text}) ==========");
 
         try
@@ -429,7 +443,7 @@ public partial class MainWindow : Window
             LogLine(success
                 ? $"========== 编译成功 (耗时 {ts}) =========="
                 : $"========== 编译失败 (耗时 {ts}) ==========");
-            TxtStatus.Text = success ? $"编译成功 ({ts})" : $"编译失败 ({ts})";
+            TxtStatus.Text = success ? $"编译成功 (总用时 {ts})" : $"编译失败 (总用时 {ts})";
         }
         catch (Exception ex)
         {
@@ -438,6 +452,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            EndRunTiming();
             selected.Status = BuildStatus.Idle;
             _activeProject = null;
             UpdateUI();
@@ -474,10 +489,12 @@ public partial class MainWindow : Window
 
         _activeProject = selected;
         selected.Status = BuildStatus.Publishing;
+        BeginRunTiming($"发布: {selected.Name}");
+        BeginProjectTiming(selected);
         UpdateUI();
 
         TxtOutput.Clear();
-        TxtStatus.Text = selected.StatusText;
+        RefreshRunningDuration(force: true);
         LogLine($"========== 开始发布: {selected.Name} ==========");
 
         try
@@ -490,7 +507,7 @@ public partial class MainWindow : Window
             LogLine(success
                 ? $"========== 发布成功 (耗时 {ts}) =========="
                 : $"========== 发布失败 (耗时 {ts}) ==========");
-            TxtStatus.Text = success ? $"发布成功 ({ts})" : $"发布失败 ({ts})";
+            TxtStatus.Text = success ? $"发布成功 (总用时 {ts})" : $"发布失败 (总用时 {ts})";
         }
         catch (Exception ex)
         {
@@ -499,6 +516,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            EndRunTiming();
             selected.Status = BuildStatus.Idle;
             _activeProject = null;
             UpdateUI();
@@ -551,6 +569,73 @@ public partial class MainWindow : Window
         while (_pendingOutput.TryDequeue(out _)) { }
         TxtOutput.Clear();
     }
+
+    private void BeginRunTiming(string summary)
+    {
+        _totalRunStopwatch = Stopwatch.StartNew();
+        _runSummary = summary;
+        _lastElapsedSecond = -1;
+        RefreshRunningDuration(force: true);
+    }
+
+    private void UpdateRunSummary(string summary)
+    {
+        _runSummary = summary;
+        RefreshRunningDuration(force: true);
+    }
+
+    private void BeginProjectTiming(ProjectEntry project)
+    {
+        _timedProject = project;
+        _currentProjectStopwatch = Stopwatch.StartNew();
+        project.CurrentTaskElapsed = TimeSpan.Zero;
+        LstProjects.Items.Refresh();
+    }
+
+    private void EndProjectTiming()
+    {
+        if (_timedProject != null && _currentProjectStopwatch != null)
+        {
+            _currentProjectStopwatch.Stop();
+            _timedProject.CurrentTaskElapsed = _currentProjectStopwatch.Elapsed;
+        }
+
+        _currentProjectStopwatch = null;
+        _timedProject = null;
+    }
+
+    private void EndRunTiming()
+    {
+        EndProjectTiming();
+        _totalRunStopwatch?.Stop();
+        _totalRunStopwatch = null;
+        _runSummary = null;
+        _lastElapsedSecond = -1;
+        TxtTotalElapsed.Text = string.Empty;
+    }
+
+    private void RefreshRunningDuration(bool force = false)
+    {
+        if (_totalRunStopwatch == null || _runSummary == null) return;
+
+        var elapsed = _totalRunStopwatch.Elapsed;
+        var elapsedSecond = (long)elapsed.TotalSeconds;
+        if (!force && elapsedSecond == _lastElapsedSecond) return;
+
+        _lastElapsedSecond = elapsedSecond;
+        TxtStatus.Text = _runSummary;
+        TxtTotalElapsed.Text = $"总用时 {FormatElapsed(elapsed)}";
+
+        if (_timedProject != null && _currentProjectStopwatch != null && _timedProject.Status != BuildStatus.Idle)
+        {
+            _timedProject.CurrentTaskElapsed = _currentProjectStopwatch.Elapsed;
+            LstProjects.Items.Refresh();
+        }
+    }
+
+    private static string FormatElapsed(TimeSpan elapsed) => elapsed.TotalHours >= 1
+        ? $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}"
+        : $"{elapsed.Minutes:00}:{elapsed.Seconds:00}";
 
     
     // ========== 项目组 ==========
@@ -634,6 +719,7 @@ public partial class MainWindow : Window
         LogLine("脚本: " + group.BuildScript);
 
         var sw = Stopwatch.StartNew();
+        BeginRunTiming("执行组脚本: " + group.Name);
 
         try
         {
@@ -654,7 +740,7 @@ public partial class MainWindow : Window
             LogLine(ok
                 ? "========== 组脚本执行成功 (耗时 " + ts + ") =========="
                 : "========== 组脚本执行失败 (耗时 " + ts + ") ==========");
-            TxtStatus.Text = ok ? "组脚本执行成功 (" + ts + ")" : "组脚本执行失败 (" + ts + ")";
+            TxtStatus.Text = ok ? "组脚本执行成功 (总用时 " + ts + ")" : "组脚本执行失败 (总用时 " + ts + ")";
         }
         catch (Exception ex)
         {
@@ -663,6 +749,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            EndRunTiming();
             UpdateUI();
         }
     }
@@ -712,63 +799,76 @@ public partial class MainWindow : Window
         var groupSw = Stopwatch.StartNew();
         var successCount = 0;
         var failCount = 0;
+        BeginRunTiming("发布组: " + group.Name + " | 共 " + ordered.Count + " 个，已完成 0");
 
-        for (int i = 0; i < ordered.Count; i++)
+        try
         {
-            var proj = ordered[i];
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                var proj = ordered[i];
 
-            TxtStatus.Text = "发布组: " + group.Name + " | 共 " + ordered.Count + " 个，已完成 " + i + "，还剩 " + (ordered.Count - i) + " 个";
+                UpdateRunSummary("发布组: " + group.Name + " | 共 " + ordered.Count + " 个，已完成 " + i + "，还剩 " + (ordered.Count - i) + " 个");
+
+                LogLine("");
+                LogLine(">>> [" + (i + 1) + "/" + ordered.Count + "] 发布: " + proj.Name);
+
+                if (string.IsNullOrWhiteSpace(proj.PublishDir))
+                {
+                    LogLine("[跳过] " + proj.Name + ": 未设置发布目录");
+                    proj.Status = BuildStatus.Idle;
+                    failCount++;
+                    UpdateUI();
+                    continue;
+                }
+
+                proj.Status = BuildStatus.Publishing;
+                BeginProjectTiming(proj);
+                UpdateUI();
+
+                var sw = Stopwatch.StartNew();
+                try
+                {
+                    var ok = await _build.PublishAsync(proj);
+                    sw.Stop();
+                    var ts = sw.Elapsed.TotalSeconds >= 60
+                        ? sw.Elapsed.Minutes + "分" + sw.Elapsed.Seconds + "秒"
+                        : sw.Elapsed.TotalSeconds.ToString("F1") + "秒";
+
+                    if (ok)
+                    {
+                        successCount++;
+                        LogLine(">>> " + proj.Name + ": 发布成功 (" + ts + ")");
+                    }
+                    else
+                    {
+                        failCount++;
+                        LogLine(">>> " + proj.Name + ": 发布失败 (" + ts + ")");
+                    }
+                }
+                finally
+                {
+                    EndProjectTiming();
+                    proj.Status = BuildStatus.Idle;
+                    UpdateUI();
+                }
+            }
+
+            groupSw.Stop();
+            var gts = groupSw.Elapsed.TotalSeconds >= 60
+                ? groupSw.Elapsed.Minutes + "分" + groupSw.Elapsed.Seconds + "秒"
+                : groupSw.Elapsed.TotalSeconds.ToString("F1") + "秒";
 
             LogLine("");
-            LogLine(">>> [" + (i + 1) + "/" + ordered.Count + "] 发布: " + proj.Name);
-
-            if (string.IsNullOrWhiteSpace(proj.PublishDir))
-            {
-                LogLine("[跳过] " + proj.Name + ": 未设置发布目录");
-                proj.Status = BuildStatus.Idle;
-                failCount++;
-                UpdateUI();
-                continue;
-            }
-
-            proj.Status = BuildStatus.Publishing;
-            UpdateUI();
-
-            var sw = Stopwatch.StartNew();
-            try
-            {
-                var ok = await _build.PublishAsync(proj);
-                sw.Stop();
-                var ts = sw.Elapsed.TotalSeconds >= 60
-                    ? sw.Elapsed.Minutes + "分" + sw.Elapsed.Seconds + "秒"
-                    : sw.Elapsed.TotalSeconds.ToString("F1") + "秒";
-
-                if (ok)
-                {
-                    successCount++;
-                    LogLine(">>> " + proj.Name + ": 发布成功 (" + ts + ")");
-                }
-                else
-                {
-                    failCount++;
-                    LogLine(">>> " + proj.Name + ": 发布失败 (" + ts + ")");
-                }
-            }
-            finally
-            {
-                proj.Status = BuildStatus.Idle;
-                UpdateUI();
-            }
+            LogLine("========== 项目组发布完成: 成功 " + successCount + ", 失败 " + failCount + ", 总耗时 " + gts + " ==========");
+            TxtStatus.Text = "项目组 " + group.Name + " 发布完成 (" + successCount + "/" + ordered.Count + ") | 总用时 " + gts;
         }
-
-        groupSw.Stop();
-        var gts = groupSw.Elapsed.TotalSeconds >= 60
-            ? groupSw.Elapsed.Minutes + "分" + groupSw.Elapsed.Seconds + "秒"
-            : groupSw.Elapsed.TotalSeconds.ToString("F1") + "秒";
-
-        LogLine("");
-        LogLine("========== 项目组发布完成: 成功 " + successCount + ", 失败 " + failCount + ", 总耗时 " + gts + " ==========");
-        TxtStatus.Text = "项目组 " + group.Name + " 发布完成 (" + successCount + "/" + ordered.Count + ")";
+        finally
+        {
+            foreach (var project in ordered)
+                project.Status = BuildStatus.Idle;
+            EndRunTiming();
+            UpdateUI();
+        }
     }    
     
     private void Run_Click(object sender, RoutedEventArgs e)

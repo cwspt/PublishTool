@@ -243,16 +243,23 @@ public class ProjectEntry
 
     /// <summary>运行时状态，不持久化到 JSON。</summary>
     [JsonIgnore]
+    public TimeSpan CurrentTaskElapsed { get; set; }
+
+    [JsonIgnore]
     public BuildStatus Status { get; set; } = BuildStatus.Idle;
 
     [JsonIgnore]
     public string StatusText => Status switch
     {
         BuildStatus.Idle => "",
-        BuildStatus.BuildingDebug => "编译中(Debug)...",
-        BuildStatus.BuildingRelease => "编译中(Release)...",
-        BuildStatus.Publishing => "发布中...",
+        BuildStatus.BuildingDebug => $"编译中(Debug) {FormatElapsed(CurrentTaskElapsed)}",
+        BuildStatus.BuildingRelease => $"编译中(Release) {FormatElapsed(CurrentTaskElapsed)}",
+        BuildStatus.Publishing => $"发布中 {FormatElapsed(CurrentTaskElapsed)}",
         BuildStatus.Waiting => "等待中...",
         _ => ""
     };
+
+    private static string FormatElapsed(TimeSpan elapsed) => elapsed.TotalHours >= 1
+        ? $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}"
+        : $"{elapsed.Minutes:00}:{elapsed.Seconds:00}";
 }

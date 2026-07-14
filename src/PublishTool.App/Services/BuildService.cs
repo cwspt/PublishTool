@@ -223,7 +223,13 @@ public class BuildService
     private Task<bool> RunCustomScriptAsync(string script, string workDir)
     {
         if (script.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase))
-            return RunProcessAsync("powershell", $@"-NoProfile -ExecutionPolicy Bypass -File ""{script}""", workDir);
+        {
+            var escapedScript = script.Replace("'", "''");
+            var command = "$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); " +
+                $"& '{escapedScript}'; " +
+                "if ($null -eq $LASTEXITCODE) { exit 0 } else { exit $LASTEXITCODE }";
+            return RunProcessAsync("powershell", $@"-NoProfile -ExecutionPolicy Bypass -Command ""{command}""", workDir);
+        }
 
         return RunProcessAsync("cmd", $@"/c ""{script}""", workDir);
     }
