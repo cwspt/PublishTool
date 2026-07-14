@@ -116,7 +116,21 @@ public class BuildService
     /// <summary>公开的自定义脚本执行（供项目组编译使用）。</summary>
     public async Task<bool> RunProcessForGroup(string fileName, string arguments, string workingDir)
     {
-        return await RunProcessAsync(fileName, arguments, workingDir);
+        _cts = new CancellationTokenSource();
+        _currentProcess = null;
+        try
+        {
+            return await RunProcessAsync(fileName, arguments, workingDir);
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        finally
+        {
+            _cts = null;
+            _currentProcess = null;
+        }
     }
 
     

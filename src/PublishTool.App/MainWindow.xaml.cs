@@ -1,13 +1,16 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using PublishTool.App.Models;
 using PublishTool.App.Services;
@@ -24,11 +27,23 @@ public partial class MainWindow : Window
     private List<ProjectGroup> _groups = new();
     private ObservableCollection<ProjectEntry> _projects = new();
     private ProjectEntry? _activeProject;
+    private readonly ConcurrentQueue<string> _pendingOutput = new();
+    private DispatcherTimer? _outputFlushTimer;
+
+    private const int MaxOutputBatchCharacters = 64 * 1024;
+    private const int MaxStoredLogCharacters = 1_500_000;
+    private const int RetainedLogCharacters = 1_200_000;
 
     public MainWindow()
     {
         InitializeComponent();
         _build.OutputReceived += OnBuildOutput;
+        _outputFlushTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(100)
+        };
+        _outputFlushTimer.Tick += (_, _) => FlushPendingOutput();
+        _outputFlushTimer.Start();
         LoadProjects();
     }
 
@@ -488,13 +503,44 @@ public partial class MainWindow : Window
 
     private void OnBuildOutput(string text)
     {
-        Dispatcher.Invoke(() => LogLine(text));
+        _pendingOutput.Enqueue(text);
     }
 
     private void LogLine(string text)
     {
-        TxtOutput.AppendText(text + Environment.NewLine);
+        AppendLogText(text + Environment.NewLine);
+    }
+
+    private void FlushPendingOutput()
+    {
+        if (_pendingOutput.IsEmpty) return;
+
+        var batch = new StringBuilder();
+        while (batch.Length < MaxOutputBatchCharacters && _pendingOutput.TryDequeue(out var line))
+            batch.AppendLine(line);
+
+        if (batch.Length > 0)
+            AppendLogText(batch.ToString());
+    }
+
+    private void AppendLogText(string text)
+    {
+        var excess = TxtOutput.Text.Length + text.Length - MaxStoredLogCharacters;
+        if (excess > 0)
+        {
+            var removeLength = Math.Min(excess + 100_000, TxtOutput.Text.Length);
+            TxtOutput.Select(0, removeLength);
+            TxtOutput.SelectedText = string.Empty;
+        }
+
+        TxtOutput.AppendText(text);
         TxtOutput.ScrollToEnd();
+    }
+
+    private void ClearOutput()
+    {
+        while (_pendingOutput.TryDequeue(out _)) { }
+        TxtOutput.Clear();
     }
 
     
@@ -573,7 +619,7 @@ public partial class MainWindow : Window
             ? System.IO.Path.GetDirectoryName(firstProj.ProjectPath)!
             : firstProj.ProjectPath;
 
-        TxtOutput.Clear();
+        ClearOutput();
         TxtStatus.Text = "执行组脚本: " + group.Name;
         LogLine("========== 执行组脚本: " + group.Name + " ==========");
         LogLine("脚本: " + group.BuildScript);
@@ -582,11 +628,14 @@ public partial class MainWindow : Window
 
         try
         {
-            var ok = false;
+            Task<bool> execution;
             if (group.BuildScript.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase))
-                ok = await _build.RunProcessForGroup("powershell", "-NoProfile -ExecutionPolicy Bypass -File \"" + group.BuildScript + "\"", workDir);
+                execution = _build.RunProcessForGroup("powershell", "-NoProfile -ExecutionPolicy Bypass -File \"" + group.BuildScript + "\"", workDir);
             else
-                ok = await _build.RunProcessForGroup("cmd", "/c \"" + group.BuildScript + "\"", workDir);
+                execution = _build.RunProcessForGroup("cmd", "/c \"" + group.BuildScript + "\"", workDir);
+
+            UpdateUI();
+            var ok = await execution;
 
             sw.Stop();
             var ts = sw.Elapsed.TotalSeconds >= 60
@@ -602,6 +651,10 @@ public partial class MainWindow : Window
         {
             LogLine("执行异常: " + ex.Message);
             TxtStatus.Text = "执行异常";
+        }
+        finally
+        {
+            UpdateUI();
         }
     }
 
@@ -825,6 +878,6 @@ public partial class MainWindow : Window
 
     private void ClearLog_Click(object sender, RoutedEventArgs e)
     {
-        TxtOutput.Clear();
+        ClearOutput();
     }
 }
