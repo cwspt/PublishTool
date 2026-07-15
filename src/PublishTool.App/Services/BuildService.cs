@@ -18,6 +18,9 @@ public class BuildService
 
     public void Cancel()
     {
+        var processId = "none";
+        try { processId = _currentProcess?.Id.ToString() ?? "none"; } catch { }
+        DiagnosticLogService.Write("Process", $"Cancellation requested; pid={processId}");
         _cts?.Cancel();
         try { _currentProcess?.Kill(true); } catch { }
         OnOutput("========== 用户取消了当前任务 ==========");
@@ -250,26 +253,37 @@ public class BuildService
 
     private Task<bool> RunAndroidPublishAsync(ProjectEntry project)
     {
-        var projDir = project.ProjectPath;
-        if (!Directory.Exists(project.PublishDir))
+        var ct = _cts?.Token ?? CancellationToken.None;
+        return Task.Run(() =>
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var copiedFiles = 0;
+            DiagnosticLogService.Write("FilePublish", $"Android publish started; project={project.Name}");
+
+            var projDir = project.ProjectPath;
             Directory.CreateDirectory(project.PublishDir);
 
-        var apkDirs = new[] { @"app\build\outputs\apk" };
-        foreach (var dir in apkDirs)
-        {
-            var fullDir = Path.Combine(projDir, dir);
-            if (!Directory.Exists(fullDir)) continue;
-
-            foreach (var apk in Directory.GetFiles(fullDir, "*.apk", SearchOption.AllDirectories))
+            var apkDirs = new[] { @"app\build\outputs\apk" };
+            foreach (var dir in apkDirs)
             {
-                var dest = Path.Combine(project.PublishDir, Path.GetFileName(apk));
-                File.Copy(apk, dest, true);
-                OnOutput($"已复制: {Path.GetFileName(apk)} -> {project.PublishDir}");
-            }
-        }
+                var fullDir = Path.Combine(projDir, dir);
+                if (!Directory.Exists(fullDir)) continue;
 
-        OnOutput("Android 发布完成");
-        return Task.FromResult(true);
+                foreach (var apk in Directory.EnumerateFiles(fullDir, "*.apk", SearchOption.AllDirectories))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var dest = Path.Combine(project.PublishDir, Path.GetFileName(apk));
+                    File.Copy(apk, dest, true);
+                    copiedFiles++;
+                    OnOutput($"已复制: {Path.GetFileName(apk)} -> {project.PublishDir}");
+                }
+            }
+
+            OnOutput("Android 发布完成");
+            DiagnosticLogService.Write("FilePublish",
+                $"Android publish finished; project={project.Name}; files={copiedFiles}; elapsed={stopwatch.Elapsed.TotalMilliseconds:F0}ms");
+            return true;
+        }, ct);
     }
 
     private async Task<bool> RunVueBuildAsync(ProjectEntry project)
@@ -280,35 +294,50 @@ public class BuildService
 
     private Task<bool> RunVuePublishAsync(ProjectEntry project)
     {
-        var projDir = ResolveWorkDir(project);
-        var distPath = Path.Combine(projDir, "dist");
-        if (!Directory.Exists(distPath))
+        var ct = _cts?.Token ?? CancellationToken.None;
+        return Task.Run(() =>
         {
-            OnOutput("错误: dist 目录不存在，请先编译该项目");
-            return Task.FromResult(false);
-        }
+            var stopwatch = Stopwatch.StartNew();
+            var copiedFiles = 0;
+            DiagnosticLogService.Write("FilePublish", $"Vue publish started; project={project.Name}");
 
-        if (!Directory.Exists(project.PublishDir))
+            var projDir = ResolveWorkDir(project);
+            var distPath = Path.Combine(projDir, "dist");
+            if (!Directory.Exists(distPath))
+            {
+                OnOutput("错误: dist 目录不存在，请先编译该项目");
+                return false;
+            }
+
             Directory.CreateDirectory(project.PublishDir);
 
-        foreach (var file in Directory.GetFiles(distPath, "*", SearchOption.AllDirectories))
-        {
-            var relative = Path.GetRelativePath(distPath, file);
-            var dest = Path.Combine(project.PublishDir, relative);
-            var destDir = Path.GetDirectoryName(dest);
-            if (destDir != null && !Directory.Exists(destDir))
-                Directory.CreateDirectory(destDir);
-            File.Copy(file, dest, true);
-            OnOutput($"已复制: {relative} -> {project.PublishDir}");
-        }
+            foreach (var file in Directory.EnumerateFiles(distPath, "*", SearchOption.AllDirectories))
+            {
+                ct.ThrowIfCancellationRequested();
+                var relative = Path.GetRelativePath(distPath, file);
+                var dest = Path.Combine(project.PublishDir, relative);
+                var destDir = Path.GetDirectoryName(dest);
+                if (destDir != null)
+                    Directory.CreateDirectory(destDir);
+                File.Copy(file, dest, true);
+                copiedFiles++;
+                OnOutput($"已复制: {relative} -> {project.PublishDir}");
+            }
 
-        OnOutput("Vue 发布完成");
-        return Task.FromResult(true);
+            OnOutput("Vue 发布完成");
+            DiagnosticLogService.Write("FilePublish",
+                $"Vue publish finished; project={project.Name}; files={copiedFiles}; elapsed={stopwatch.Elapsed.TotalMilliseconds:F0}ms");
+            return true;
+        }, ct);
     }
 
     private async Task<bool> RunProcessAsync(string fileName, string arguments, string workingDir)
     {
         OnOutput($"执行: {fileName} {arguments}");
+        DiagnosticLogService.Write("Process", $"Starting: {fileName} {arguments}; workDir={workingDir}");
+        var processStopwatch = Stopwatch.StartNew();
+        long standardOutputLines = 0;
+        long standardErrorLines = 0;
 
         var psi = new ProcessStartInfo
         {
@@ -323,7 +352,7 @@ public class BuildService
             CreateNoWindow = true
         };
 
-        var process = new Process { StartInfo = psi };
+        using var process = new Process { StartInfo = psi };
         _currentProcess = process;
 
         var processExited = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -333,12 +362,20 @@ public class BuildService
 
         process.OutputDataReceived += (_, e) =>
         {
-            if (e.Data != null) OnOutput(e.Data);
+            if (e.Data != null)
+            {
+                Interlocked.Increment(ref standardOutputLines);
+                OnOutput(e.Data);
+            }
             else standardOutputClosed.TrySetResult(true);
         };
         process.ErrorDataReceived += (_, e) =>
         {
-            if (e.Data != null) OnOutput($"错误: {e.Data}");
+            if (e.Data != null)
+            {
+                Interlocked.Increment(ref standardErrorLines);
+                OnOutput($"错误: {e.Data}");
+            }
             else standardErrorClosed.TrySetResult(true);
         };
         process.EnableRaisingEvents = true;
@@ -346,9 +383,28 @@ public class BuildService
 
         using var cancellationRegistration = ct.Register(() => processExited.TrySetResult(false));
 
+        async Task WaitForRedirectedStreamsAsync(string reason)
+        {
+            var streamsClosed = Task.WhenAll(standardOutputClosed.Task, standardErrorClosed.Task);
+            if (await Task.WhenAny(streamsClosed, Task.Delay(TimeSpan.FromSeconds(5))) == streamsClosed)
+            {
+                await streamsClosed;
+                return;
+            }
+
+            DiagnosticLogService.Write("Process",
+                $"Redirected streams did not close within 5s after {reason}; pid={process.Id}; " +
+                $"stdoutLines={Interlocked.Read(ref standardOutputLines)}; stderrLines={Interlocked.Read(ref standardErrorLines)}");
+            try { process.CancelOutputRead(); } catch { }
+            try { process.CancelErrorRead(); } catch { }
+            standardOutputClosed.TrySetResult(true);
+            standardErrorClosed.TrySetResult(true);
+        }
+
         try
         {
             process.Start();
+            DiagnosticLogService.Write("Process", $"Started; pid={process.Id}; file={fileName}");
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
@@ -359,25 +415,35 @@ public class BuildService
             if (ct.IsCancellationRequested)
             {
                 try { process.Kill(true); } catch { }
+                await WaitForRedirectedStreamsAsync("cancellation");
+                DiagnosticLogService.Write("Process",
+                    $"Cancelled; pid={process.Id}; elapsed={processStopwatch.Elapsed.TotalMilliseconds:F0}ms");
                 throw new OperationCanceledException(ct);
             }
 
             if (completedTask != processExited.Task || !process.HasExited)
             {
                 try { process.Kill(true); } catch { }
-                await Task.WhenAll(standardOutputClosed.Task, standardErrorClosed.Task);
+                await WaitForRedirectedStreamsAsync("timeout");
                 OnOutput("编译超时（10分钟），已终止");
+                DiagnosticLogService.Write("Process",
+                    $"Timed out; pid={process.Id}; elapsed={processStopwatch.Elapsed.TotalMilliseconds:F0}ms");
                 return false;
             }
 
             // The process exit event can precede the final async output callbacks.
-            await Task.WhenAll(standardOutputClosed.Task, standardErrorClosed.Task);
-            return process.ExitCode == 0;
+            await WaitForRedirectedStreamsAsync("process exit");
+            var success = process.ExitCode == 0;
+            DiagnosticLogService.Write("Process",
+                $"Exited; pid={process.Id}; exitCode={process.ExitCode}; elapsed={processStopwatch.Elapsed.TotalMilliseconds:F0}ms; " +
+                $"stdoutLines={Interlocked.Read(ref standardOutputLines)}; stderrLines={Interlocked.Read(ref standardErrorLines)}");
+            return success;
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
             OnOutput($"执行失败: {ex.Message}");
+            DiagnosticLogService.Write("Process", $"Failed after {processStopwatch.Elapsed.TotalMilliseconds:F0}ms: {ex}");
             return false;
         }
     }

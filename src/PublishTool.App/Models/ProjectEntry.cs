@@ -90,23 +90,26 @@ public class ProjectEntry
             case ProjectType.Console:
             case ProjectType.WinForms:
             case ProjectType.Wpf:
-                return FindDotNetIcon(projDir);
+                return FindDotNetIcon(ProjectPath, projDir);
             case ProjectType.Android:
                 return FindAndroidIcon(projDir);
             case ProjectType.Vue:
               case ProjectType.BlazorWasm:
               case ProjectType.BlazorServer:
-                  return FindDotNetIcon(projDir) ?? FindWebIcon(projDir);
+                  return FindDotNetIcon(ProjectPath, projDir) ?? FindWebIcon(projDir);
             default:
                 return null;
         }
     }
 
-    private static string? FindDotNetIcon(string projDir)
+    private static string? FindDotNetIcon(string projectPath, string projDir)
     {
         try
         {
-            var csprojFiles = Directory.GetFiles(projDir, "*.csproj", SearchOption.AllDirectories);
+            var csprojFiles = File.Exists(projectPath) &&
+                              projectPath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)
+                ? new[] { projectPath }
+                : SafeSearch(projDir, "*.csproj");
             foreach (var csproj in csprojFiles)
             {
                 var doc = XDocument.Load(csproj);
@@ -128,7 +131,7 @@ public class ProjectEntry
     {
         try
         {
-            var candidates = Directory.GetFiles(projDir, "ic_launcher.png", SearchOption.AllDirectories);
+            var candidates = SafeSearch(projDir, "ic_launcher.png").ToArray();
             var foreground = candidates.FirstOrDefault(f => f.Contains("mipmap"));
             return foreground ?? candidates.FirstOrDefault();
         }
@@ -218,7 +221,7 @@ public class ProjectEntry
             foreach (var d in Directory.GetDirectories(dir))
             {
                 var name = Path.GetFileName(d);
-                if (name is "bin" or "obj" or ".git" or ".vs" or "node_modules" or "dist")
+                if (name is "bin" or "obj" or "build" or ".git" or ".vs" or "node_modules" or "dist")
                     continue;
                 CollectFiles(d, pattern, results);
             }

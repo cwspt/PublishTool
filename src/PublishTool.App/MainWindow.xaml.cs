@@ -9,6 +9,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -30,15 +31,28 @@ public partial class MainWindow : Window
     private ProjectEntry? _activeProject;
     private readonly ConcurrentQueue<string> _pendingOutput = new();
     private DispatcherTimer? _outputFlushTimer;
+    private readonly Stopwatch _uiHeartbeatStopwatch = Stopwatch.StartNew();
+    private readonly Stopwatch _logScrollStopwatch = Stopwatch.StartNew();
+    private TimeSpan _lastUiHeartbeat;
+    private DateTime _lastIconRefreshUtc = DateTime.UtcNow;
+    private int _pendingOutputCount;
+    private long _pendingOutputCharacters;
+    private int _droppedOutputLines;
+    private int _storedLogCharacters;
     private Stopwatch? _totalRunStopwatch;
     private Stopwatch? _currentProjectStopwatch;
     private ProjectEntry? _timedProject;
     private string? _runSummary;
     private long _lastElapsedSecond = -1;
 
-    private const int MaxOutputBatchCharacters = 64 * 1024;
-    private const int MaxStoredLogCharacters = 1_500_000;
-    private const int RetainedLogCharacters = 1_200_000;
+    private const int MaxOutputBatchCharacters = 16 * 1024;
+    private const int MaxOutputLineCharacters = 32 * 1024;
+    private const int MaxPendingOutputCharacters = 4 * 1024 * 1024;
+    private const int MaxStoredLogCharacters = 600_000;
+    private const int RetainedLogCharacters = 450_000;
+    private const int OutputFlushBudgetMilliseconds = 12;
+    private const int LogScrollIntervalMilliseconds = 250;
+    private const int DispatcherDelayWarningMilliseconds = 1_000;
     private static readonly Regex AnsiEscapeSequence = new(
         @"\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\a]*(?:\a|\x1B\\))",
         RegexOptions.Compiled);
@@ -53,11 +67,13 @@ public partial class MainWindow : Window
         };
         _outputFlushTimer.Tick += (_, _) =>
         {
-            FlushPendingOutput();
+            RecordUiHeartbeat();
             RefreshRunningDuration();
+            FlushPendingOutput();
         };
         _outputFlushTimer.Start();
         LoadProjects();
+        DiagnosticLogService.Write("UI", "Main window initialized");
     }
 
     private void LoadProjects()
@@ -124,7 +140,7 @@ public partial class MainWindow : Window
             ? System.IO.Path.GetDirectoryName(selected.ProjectPath)!
             : selected.ProjectPath;
 
-        TxtOutput.Clear();
+        ClearOutput();
         TxtStatus.Text = "执行脚本: " + script.Name;
         LogLine("========== 执行脚本: " + script.Name + " ==========");
         LogLine("脚本: " + script.Path);
@@ -429,7 +445,7 @@ public partial class MainWindow : Window
         BeginProjectTiming(selected);
         UpdateUI();
 
-        TxtOutput.Clear();
+        ClearOutput();
         RefreshRunningDuration(force: true);
         LogLine($"========== 开始编译: {selected.Name} ({CmbConfig.Text}) ==========");
 
@@ -493,7 +509,7 @@ public partial class MainWindow : Window
         BeginProjectTiming(selected);
         UpdateUI();
 
-        TxtOutput.Clear();
+        ClearOutput();
         RefreshRunningDuration(force: true);
         LogLine($"========== 开始发布: {selected.Name} ==========");
 
@@ -525,49 +541,136 @@ public partial class MainWindow : Window
 
     private void OnBuildOutput(string text)
     {
-        _pendingOutput.Enqueue(AnsiEscapeSequence.Replace(text, string.Empty));
+        var boundedText = text.Length <= MaxOutputLineCharacters
+            ? text
+            : text[..MaxOutputLineCharacters] + " ... [该行过长，已截断]";
+        QueueLogLine(AnsiEscapeSequence.Replace(boundedText, string.Empty), allowDrop: true);
     }
 
     private void LogLine(string text)
     {
-        FlushPendingOutput(flushAll: true);
-        AppendLogText(text + Environment.NewLine);
+        QueueLogLine(text, allowDrop: false);
     }
 
-    private void FlushPendingOutput(bool flushAll = false)
+    private void QueueLogLine(string text, bool allowDrop)
     {
-        do
+        if (allowDrop && Interlocked.Read(ref _pendingOutputCharacters) >= MaxPendingOutputCharacters)
         {
-            if (_pendingOutput.IsEmpty) return;
-
-            var batch = new StringBuilder();
-            while (batch.Length < MaxOutputBatchCharacters && _pendingOutput.TryDequeue(out var line))
-                batch.AppendLine(line);
-
-            if (batch.Length > 0)
-                AppendLogText(batch.ToString());
+            Interlocked.Increment(ref _droppedOutputLines);
+            return;
         }
-        while (flushAll && !_pendingOutput.IsEmpty);
+
+        Interlocked.Add(ref _pendingOutputCharacters, text.Length + Environment.NewLine.Length);
+        Interlocked.Increment(ref _pendingOutputCount);
+        _pendingOutput.Enqueue(text);
+    }
+
+    private void FlushPendingOutput()
+    {
+        var flushStopwatch = Stopwatch.StartNew();
+        var batch = new StringBuilder();
+        while (batch.Length < MaxOutputBatchCharacters &&
+               flushStopwatch.ElapsedMilliseconds < OutputFlushBudgetMilliseconds &&
+               _pendingOutput.TryDequeue(out var line))
+        {
+            Interlocked.Decrement(ref _pendingOutputCount);
+            Interlocked.Add(ref _pendingOutputCharacters, -(line.Length + Environment.NewLine.Length));
+            batch.AppendLine(line);
+        }
+
+        var droppedLines = Interlocked.Exchange(ref _droppedOutputLines, 0);
+        if (droppedLines > 0)
+        {
+            batch.AppendLine($"[日志产生速度过快，已丢弃 {droppedLines} 行；详情已写入 diagnostic 日志]");
+            DiagnosticLogService.Write("UI",
+                $"Dropped {droppedLines} output lines; pendingChars={Math.Max(0, Interlocked.Read(ref _pendingOutputCharacters))}");
+        }
+
+        if (batch.Length == 0) return;
+
+        AppendLogText(batch.ToString());
+        flushStopwatch.Stop();
+        if (flushStopwatch.ElapsedMilliseconds >= 100)
+        {
+            DiagnosticLogService.Write("UI",
+                $"Log flush took {flushStopwatch.ElapsedMilliseconds}ms; batchChars={batch.Length}; " +
+                $"pendingLines={Math.Max(0, Volatile.Read(ref _pendingOutputCount))}; storedChars={_storedLogCharacters}");
+        }
     }
 
     private void AppendLogText(string text)
     {
-        var excess = TxtOutput.Text.Length + text.Length - MaxStoredLogCharacters;
-        if (excess > 0)
+        if (_storedLogCharacters + text.Length > MaxStoredLogCharacters)
         {
-            var removeLength = Math.Min(excess + 100_000, TxtOutput.Text.Length);
-            TxtOutput.Select(0, removeLength);
-            TxtOutput.SelectedText = string.Empty;
+            var existingText = TxtOutput.Text;
+            var retainStart = Math.Max(0, existingText.Length - RetainedLogCharacters);
+            if (retainStart > 0)
+            {
+                var nextLineBreak = existingText.IndexOf('\n', retainStart);
+                if (nextLineBreak >= 0)
+                    retainStart = nextLineBreak + 1;
+            }
+
+            const string truncationNotice = "[较早的运行日志已截断，完整卡顿诊断请查看本地 diagnostic 日志]\r\n";
+            var retainedText = existingText[retainStart..];
+            TxtOutput.Text = truncationNotice + retainedText;
+            TxtOutput.CaretIndex = TxtOutput.Text.Length;
+            _storedLogCharacters = truncationNotice.Length + retainedText.Length;
+            DiagnosticLogService.Write("UI", $"Visible log truncated; retainedChars={_storedLogCharacters}");
         }
 
         TxtOutput.AppendText(text);
-        TxtOutput.ScrollToEnd();
+        _storedLogCharacters += text.Length;
+
+        if (_logScrollStopwatch.ElapsedMilliseconds >= LogScrollIntervalMilliseconds ||
+            Volatile.Read(ref _pendingOutputCount) <= 0)
+        {
+            TxtOutput.ScrollToEnd();
+            _logScrollStopwatch.Restart();
+        }
     }
 
     private void ClearOutput()
     {
-        while (_pendingOutput.TryDequeue(out _)) { }
+        while (_pendingOutput.TryDequeue(out var clearedLine))
+        {
+            Interlocked.Decrement(ref _pendingOutputCount);
+            Interlocked.Add(ref _pendingOutputCharacters, -(clearedLine.Length + Environment.NewLine.Length));
+        }
+        Interlocked.Exchange(ref _droppedOutputLines, 0);
         TxtOutput.Clear();
+        _storedLogCharacters = 0;
+        _logScrollStopwatch.Restart();
+    }
+
+    private void RecordUiHeartbeat()
+    {
+        var now = _uiHeartbeatStopwatch.Elapsed;
+        if (_lastUiHeartbeat != TimeSpan.Zero)
+        {
+            var delay = now - _lastUiHeartbeat;
+            if (delay.TotalMilliseconds >= DispatcherDelayWarningMilliseconds)
+            {
+                var managedMemoryMb = GC.GetTotalMemory(forceFullCollection: false) / 1024d / 1024d;
+                var workingSetMb = 0d;
+                try
+                {
+                    using var currentProcess = Process.GetCurrentProcess();
+                    workingSetMb = currentProcess.WorkingSet64 / 1024d / 1024d;
+                }
+                catch { }
+
+                DiagnosticLogService.Write("UI",
+                    $"Dispatcher delayed {delay.TotalMilliseconds:F0}ms; " +
+                    $"pendingLines={Math.Max(0, Volatile.Read(ref _pendingOutputCount))}; " +
+                    $"pendingChars={Math.Max(0, Interlocked.Read(ref _pendingOutputCharacters))}; " +
+                    $"storedChars={_storedLogCharacters}; managedMemoryMb={managedMemoryMb:F1}; " +
+                    $"workingSetMb={workingSetMb:F1}; gen2Collections={GC.CollectionCount(2)}; " +
+                    $"task={_runSummary ?? "none"}");
+            }
+        }
+
+        _lastUiHeartbeat = now;
     }
 
     private void BeginRunTiming(string summary)
@@ -575,6 +678,7 @@ public partial class MainWindow : Window
         _totalRunStopwatch = Stopwatch.StartNew();
         _runSummary = summary;
         _lastElapsedSecond = -1;
+        DiagnosticLogService.Write("Task", $"Started: {summary}");
         RefreshRunningDuration(force: true);
     }
 
@@ -608,6 +712,11 @@ public partial class MainWindow : Window
     {
         EndProjectTiming();
         _totalRunStopwatch?.Stop();
+        if (_totalRunStopwatch != null)
+        {
+            DiagnosticLogService.Write("Task",
+                $"Finished: {_runSummary ?? "unknown"}; elapsed={_totalRunStopwatch.Elapsed.TotalMilliseconds:F0}ms");
+        }
         _totalRunStopwatch = null;
         _runSummary = null;
         _lastElapsedSecond = -1;
@@ -792,7 +901,7 @@ public partial class MainWindow : Window
             p.Status = BuildStatus.Waiting;
         UpdateUI();
 
-        TxtOutput.Clear();
+        ClearOutput();
         TxtStatus.Text = "发布组: " + group.Name + " | 共 " + ordered.Count + " 个，已完成 0";
         LogLine("========== 开始发布项目组: " + group.Name + " (" + ordered.Count + " 个项目) ==========");
 
@@ -928,7 +1037,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        TxtOutput.Clear();
+        ClearOutput();
         TxtStatus.Text = "查找可执行文件: " + selected.Name;
         LogLine("========== 启动: " + selected.Name + " (" + (isRelease ? "Release" : "Debug") + ") ==========");
 
@@ -949,9 +1058,20 @@ public partial class MainWindow : Window
     
     private void Window_Activated(object sender, EventArgs e)
     {
+        if (_build.IsRunning || DateTime.UtcNow - _lastIconRefreshUtc < TimeSpan.FromSeconds(30))
+            return;
+
+        var refreshStopwatch = Stopwatch.StartNew();
         foreach (var p in _projects)
             p.RefreshIcon();
         LstProjects.Items.Refresh();
+        _lastIconRefreshUtc = DateTime.UtcNow;
+
+        if (refreshStopwatch.ElapsedMilliseconds >= 250)
+        {
+            DiagnosticLogService.Write("UI",
+                $"Icon refresh took {refreshStopwatch.ElapsedMilliseconds}ms; projects={_projects.Count}");
+        }
     }
 
     
