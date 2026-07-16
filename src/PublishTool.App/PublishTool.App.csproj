@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -11,12 +11,12 @@
 
   <ItemGroup>
     <Resource Include="favicon.ico" />
-    <Resource Include="Assets\console.png" />
-    <Resource Include="Assets\winform.png" />
-    <Resource Include="Assets\wpf.png" />
-    <Resource Include="Assets\android.png" />
-    <Resource Include="Assets\vue.png" />
-    <Resource Include="Assets\blazor.png" />
+    <Content Include="Assets\console.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="Assets\winform.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="Assets\wpf.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="Assets\android.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="Assets\vue.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="Assets\blazor.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
   </ItemGroup>
 
 </Project>

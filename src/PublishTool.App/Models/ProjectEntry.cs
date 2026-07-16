@@ -35,9 +35,11 @@ public class ProjectEntry
     public string Name { get; set; } = string.Empty;
     public string ProjectPath { get; set; } = string.Empty;
     public ProjectType Type { get; set; }
+    private ImageSource? _typeIcon;
     [JsonIgnore]
-    public ImageSource? TypeIcon =>
-        Type switch
+    public ImageSource? TypeIcon
+    {
+        get => _typeIcon ??= Type switch
         {
             ProjectType.Console => LoadAssetImage("Assets/console.png"),
             ProjectType.WinForms => LoadAssetImage("Assets/winform.png"),
@@ -47,15 +49,19 @@ public class ProjectEntry
             ProjectType.BlazorWasm or ProjectType.BlazorServer => LoadAssetImage("Assets/blazor.png"),
             _ => null
         };
+    }
 
-    private static BitmapImage? LoadAssetImage(string path)
+    private static ImageSource? LoadAssetImage(string path)
     {
         try
         {
+            var fullPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path);
+            if (!File.Exists(fullPath)) return null;
+            using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             var bitmap = new BitmapImage();
             bitmap.BeginInit();
-            bitmap.UriSource = new Uri(path, UriKind.Relative);
             bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.StreamSource = stream;
             bitmap.EndInit();
             bitmap.Freeze();
             return bitmap;
