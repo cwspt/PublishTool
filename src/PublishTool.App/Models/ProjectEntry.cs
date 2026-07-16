@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text.Json.Serialization;
 
 using System.IO;
@@ -35,6 +35,33 @@ public class ProjectEntry
     public string Name { get; set; } = string.Empty;
     public string ProjectPath { get; set; } = string.Empty;
     public ProjectType Type { get; set; }
+    [JsonIgnore]
+    public ImageSource? TypeIcon =>
+        Type switch
+        {
+            ProjectType.Console => LoadAssetImage("Assets/console.png"),
+            ProjectType.WinForms => LoadAssetImage("Assets/winform.png"),
+            ProjectType.Wpf => LoadAssetImage("Assets/wpf.png"),
+            ProjectType.Android => LoadAssetImage("Assets/android.png"),
+            ProjectType.Vue => LoadAssetImage("Assets/vue.png"),
+            ProjectType.BlazorWasm or ProjectType.BlazorServer => LoadAssetImage("Assets/blazor.png"),
+            _ => null
+        };
+
+    private static BitmapImage? LoadAssetImage(string path)
+    {
+        try
+        {
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.UriSource = new Uri(path, UriKind.Relative);
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
+        }
+        catch { return null; }
+    }
     public string PublishDir { get; set; } = string.Empty;
     public DateTime AddedAt { get; set; } = DateTime.Now;
 
