@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -787,14 +787,9 @@ public partial class MainWindow : Window
         return idx >= 0 && idx < _groups.Count ? _groups[idx] : null;
     }
 
-    private async void BuildGroup_Click(object sender, RoutedEventArgs e)
+
+    private void BuildGroup_Click(object sender, RoutedEventArgs e)
     {
-        if (_build.IsRunning)
-        {
-            MessageBox.Show("当前有任务正在执行中，请等待完成或点击停止", "提示",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
 
         var group = GetSelectedGroup();
         if (group == null || string.IsNullOrWhiteSpace(group.BuildScript) || group.ProjectIds.Count == 0)
@@ -832,34 +827,42 @@ public partial class MainWindow : Window
 
         try
         {
-            Task<bool> execution;
+            // Use visible window so the PowerShell/Cmd window shows
+            // a important for start scripts that launch servers, etc.
+            var psi = new ProcessStartInfo
+            {
+                WorkingDirectory = workDir,
+                UseShellExecute = true
+            };
             if (group.BuildScript.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase))
-                execution = _build.RunProcessForGroup("powershell", "-NoProfile -ExecutionPolicy Bypass -File \"" + group.BuildScript + "\"", workDir);
+            {
+                psi.FileName = "powershell.exe";
+                psi.ArgumentList.Add("-NoProfile");
+                psi.ArgumentList.Add("-ExecutionPolicy");
+                psi.ArgumentList.Add("Bypass");
+                psi.ArgumentList.Add("-File");
+                psi.ArgumentList.Add(group.BuildScript);
+            }
             else
-                execution = _build.RunProcessForGroup("cmd", "/c \"" + group.BuildScript + "\"", workDir);
-
-            UpdateUI();
-            var ok = await execution;
+            {
+                psi.FileName = "cmd.exe";
+                psi.ArgumentList.Add("/k");
+                psi.ArgumentList.Add(group.BuildScript);
+            }
+            Process.Start(psi);
 
             sw.Stop();
             var ts = sw.Elapsed.TotalSeconds >= 60
                 ? sw.Elapsed.Minutes + "分" + sw.Elapsed.Seconds + "秒"
                 : sw.Elapsed.TotalSeconds.ToString("F1") + "秒";
 
-            LogLine(ok
-                ? "========== 组脚本执行成功 (耗时 " + ts + ") =========="
-                : "========== 组脚本执行失败 (耗时 " + ts + ") ==========");
-            TxtStatus.Text = ok ? "组脚本执行成功 (总用时 " + ts + ")" : "组脚本执行失败 (总用时 " + ts + ")";
+            LogLine("========== 已在独立窗口启动组脚本 (耗时 " + ts + ") ==========");
+            TxtStatus.Text = "组脚本已在独立窗口启动: " + group.Name;
         }
         catch (Exception ex)
         {
             LogLine("执行异常: " + ex.Message);
             TxtStatus.Text = "执行异常";
-        }
-        finally
-        {
-            EndRunTiming();
-            UpdateUI();
         }
     }
 
